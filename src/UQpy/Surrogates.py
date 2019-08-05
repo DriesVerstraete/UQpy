@@ -119,18 +119,13 @@ class SROM:
         else:
             self.correlation = correlation
 
-        if type(moments) is list:
+        self.samples = np.array(samples)
+        self.nsamples = self.samples.shape[0]
+        self.dimension = self.samples.shape[1]
+        if moments is None:
+            self.moments = np.ones([2, self.dimension])
+        else:
             self.moments = np.array(moments)
-        else:
-            self.moments = moments
-        if type(samples) is list:
-            self.samples = np.array(samples)
-            self.nsamples = self.samples.shape[0]
-            self.dimension = self.samples.shape[1]
-        else:
-            self.dimension = samples.shape[1]
-            self.samples = samples
-            self.nsamples = samples.shape[0]
 
         if type(weights_correlation) is list:
             self.weights_correlation = np.array(weights_correlation)
@@ -415,11 +410,33 @@ class Krig:
                     return np.inf
 
             # Product of diagonal terms is negligible sometimes, even when cc exists.
-            if np.prod(np.diagonal(cc)) == 0:
+            pdcc = np.prod(np.diagonal(cc))
+            if pdcc == 0:
                 if re == 0:
                     return np.inf, np.zeros(n)
                 else:
                     return np.inf
+
+            # c_inverse = np.linalg.inv(cc)
+            # f_d = np.matmul(c_inverse, f)
+            # y_d = np.matmul(c_inverse, y)
+            # q_1, g_1 = np.linalg.qr(f_d)  # Eq: 3.11, DACE
+            #
+            # # Check if F is a full rank matrix
+            # if np.linalg.matrix_rank(g_1) != min(np.size(f, 0), np.size(f, 1)):
+            #     raise NotImplementedError("Chosen regression functions are not sufficiently linearly independent")
+            #
+            # # Design parameters
+            # b = np.linalg.solve(g_1, np.matmul(np.transpose(q_1), y_d))
+            # gam = np.matmul(np.matmul(np.transpose(c_inverse), c_inverse), (y - np.matmul(f, b)))
+            #
+            # # Computing the process variance (Eq: 3.13, DACE)
+            # si = np.zeros(q)
+            # for lk in range(q):
+            #     si[lk] = (1 / m) * (np.linalg.norm(y_d[:, lk] - np.matmul(f_d, b[:, lk])) ** 2)
+            # ll = 0.5*(np.log(pdcc)+n*np.log(np.prod(2*np.pi*si)))
+            # if re == 1:
+            #     return ll
 
             # alpha = inv(R)*y
             alpha = cho_solve((cc, True), y)

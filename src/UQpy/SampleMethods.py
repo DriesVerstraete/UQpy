@@ -1526,25 +1526,100 @@ class AKMCS:
 
         Description:
 
-            Generate new samples using active learning method and properties of kriging surrogate along with MCS.
+            Generate new samples using different active learning method and properties of kriging surrogate along with
+            MCS.
 
             References:
         Input:
             :param model: Python model which is used to evaluate the function value
             :type model: str
 
-        Output:
-            :return: AKMCS.samples: Final/expanded samples.
-            :rtype: AKMCS.samples: ndarray
+            :param dist_name: A list containing the names of the distributions of the random variables.
+                              Distribution names must match those in the Distributions module.
+                              If the distribution does not match one from the Distributions module, the user must
+                              provide custom_dist.py.
+                              The length of the string must be 1 (if all distributions are the same) or equal to
+                              dimension.
+            :type dist_name: string list
 
+            :param dist_params: Parameters of the distribution
+                                Parameters for each random variable are defined as ndarrays.
+                                Each item in the list, dist_params[i], specifies the parameters for the corresponding
+                                distribution, dist[i].
+            :type dist_params: list
+
+            :param nsamples: Number of samples to generate.
+            No Default Value: nsamples must be prescribed.
+            :type nsamples: int
+
+            :param doe: Design of Experiment.
+            :type doe: ndarray
+
+            :param population: Monte Carlo Population, new samples are selected from this set of points.
+            :type doe: ndarray
+
+            :param n_doe: Number of samples to be selected as design point from Population. It is only required if
+                          design points are not define.
+            :type n_doe: int
+
+            :param lf: Learning function used as selection criteria to identify the new samples.
+                       Options: U, Weighted-U, EFF, EIF and EGIF
+            :type n_doe: str
+
+            :param n_add: Number of samples to be selected per iteration.
+            :type n_add: int
+
+            :param min_cov: Minimum Covariance used as the stopping criteria of AKMCS method in case of relaibilty
+                            analysis.
+            :type min_cov: int
+
+            :param n_stop: Final number of samples to be selected as design point from Population.
+            :type n_stop: int
+
+            :param max_p: Maximum possible value of probabilty density function of samples. Only required with
+                          'Weighted-U' learning function.
+            :type max_p: float
+
+            :param reg_model: Regression model used to estimate gradient by using kriging surrogate. Only required
+                               if kriging is used as surrogate approximation.
+            :type reg_model: str
+
+            :param corr_model: Correlation model used to estimate gradient by using kriging surrogate. Only required
+                               if kriging is used as surrogate approximation.
+            :type corr_model: str
+
+            :param corr_model_params: Correlation model parameters used to estimate hyperparamters for kriging
+                                      surrogate.
+            :type corr_model_params: ndarray
+
+            :param n_opt: Number of times optimization problem is to be solved with different starting point.
+                          Default: 1
+            :type n_opt: int
+
+        Output:
+            :return: AKMCS.DoE: Final/expanded samples.
+            :rtype: AKMCS.DoE: ndarray
+
+            :return: AKMCS.values:
+            :rtype: AKMCS.values: ndarray
+
+            :return: AKMCS.pr: Prediction function for the final surrogate model.
+            :rtype: AKMCS.pf: function
+
+            :return: AKMCS.pf: Probability of failure. Available as an output only after Reliability Analysis.
+            :rtype: AKMCS.pf: int
+
+            :return: AKMCS.cov_pf: Covariance of probability of failure.  Available as an output only after Reliability
+                                   Analysis.
+            :rtype: AKMCS.pf: int
     """
 
     # Authors: Mohit S. Chauhan
-    # Last modified: 03/01/2019 by Mohit S. Chauhan
+    # Last modified: 08/04/2019 by Mohit S. Chauhan
 
-    def __init__(self, model=None, dist_name=None, dist_params=None, nsamples=None, n_doe=None, doe=None, lf=None,
-                 corr_model='Gaussian', reg_model='Linear', corr_model_params=None, n_opt=10, n_add=1, min_cov=None,
-                 n_stop=None, max_p=None, population=None, domain=None, n_dom=None):
+    def __init__(self, model=None, dist_name=None, dist_params=None, nsamples=None, doe=None, population=None,
+                 n_doe=None, lf=None, n_add=1, min_cov=None, n_stop=None, max_p=None, corr_model='Gaussian',
+                 reg_model='Linear', corr_model_params=None, n_opt=10):
 
         self.model = model
         self.dist_name = dist_name
@@ -1563,8 +1638,6 @@ class AKMCS:
         self.max_p = max_p
         self.population = population
         self.kriging = 'UQpy'
-        self.domain = np.array(domain)
-        self.n_dom = np.array(n_dom)
         self.analysis = None
         self.strata = None
         self.init_akmcs()
@@ -1605,38 +1678,16 @@ class AKMCS:
                     gp.fit(self.DoE, values)
                     interpolate = gp.predict
 
-                # num = 25
-                # x1 = np.linspace(-5, 5, num)
-                # x2 = np.linspace(-5, 5, num)
-                # x1v, x2v = np.meshgrid(x1, x2)
-                # y = np.zeros([num, num])
-                # y_act = np.zeros([num, num])
-                # mse = np.zeros([num, num])
-                # for i in range(num):
-                #     for j in range(num):
-                #         y[i, j] = k.interpolate(np.array([[x1v[i, j], x2v[i, j]]]))
-                #         y_act[i, j] = np.array(RunModel(np.array([[x1v[i, j], x2v[i, j]]]), model_script=self.model).qoi_list)
-                # import matplotlib.pyplot as plt
-                # from matplotlib import cm
-                # from matplotlib.ticker import LinearLocator, FormatStrFormatter
-                # from mpl_toolkits import mplot3d
-                # fig = plt.figure()
-                # ax = plt.axes(projection='3d')
-                # # Plot for estimated values
-                # kr = ax.plot_wireframe(x1v, x2v, y, color='Green', label='Kriging interpolate')
-                # kr_a = ax.plot_wireframe(x1v, x2v, y_act, color='Black', label='Actual')
-                #
-                # # Plot for scattered data
-                # ID1 = ax.scatter(self.DoE[:, 0], self.DoE[:, 1], color='Red', label='Input data')
-                # # ID = ax.scatter(x.samples[:, 0], x.samples[:, 1], color='Red', label='Input data')
-                # plt.legend(handles=[kr, kr_a, ID1])
-                # plt.show()
-
                 for i in range(n, n_, self.n_add):
                     if i == self.n_stop:
                         break
                     rest_pop = np.array([x for x in self.population.tolist() if x not in self.DoE.tolist()])
-                    new, ind, g = self.lf(interpolate, rest_pop, self.n_add, p, self.max_p, self.kriging)
+                    if self.lf == 'U':
+                        new, ind, g = self.u(interpolate, rest_pop)
+                    if self.lf == 'Weighted-U':
+                        new, ind, g = self.weighted_u(interpolate, rest_pop, p)
+                    if self.lf == 'EFF':
+                        new, ind, g = self.eff(interpolate, rest_pop)
                     self.DoE = np.vstack([self.DoE, new])
 
                     v_new = np.array(RunModel(np.atleast_2d(new), model_script=self.model).qoi_list)
@@ -1648,8 +1699,8 @@ class AKMCS:
 
                     if self.kriging == 'UQpy':
                         with suppress_stdout():  # disable printing output comments
-                            k = Krig(samples=self.DoE, values=values, corr_model=self.corr_model, reg_model=self.reg_model,
-                                     corr_model_params=tmp)
+                            k = Krig(samples=self.DoE, values=values, corr_model=self.corr_model,
+                                     reg_model=self.reg_model, corr_model_params=self.corr_model_params)
                         self.corr_model_params = k.corr_model_params
                         interpolate = k.interpolate
                     else:
@@ -1657,9 +1708,9 @@ class AKMCS:
                         gp.fit(self.DoE, values)
                         interpolate = gp.predict
 
-                pf = np.sum(g < 0)/n_
-                print(pf)
-                cov_pf = np.sqrt((1 - pf)/(pf * n_))
+                pf = np.sum(g < 0) / n_
+                cov_pf = np.sqrt((1 - pf) / (pf * n_))
+
                 if i == self.n_stop:
                     print('Done!')
                     return values, pf, cov_pf, interpolate
@@ -1680,31 +1731,20 @@ class AKMCS:
                              corr_model_params=self.corr_model_params, n_opt=self.n_opt)
                 self.corr_model_params = k.corr_model_params
                 interpolate = k.interpolate
-                jacobian = k.jacobian
             else:
                 gp = GaussianProcessRegressor(kernel=self.corr_model_params, n_restarts_optimizer=0)
                 gp.fit(self.DoE, values)
                 interpolate = gp.predict
-                jacobian, tmp = 0, 0
-
-            if self.lf == 'mvp':
-                self.strata = Strata(n_strata=self.n_dom)
-                self.strata.origins = self.domain[:, 0] + (self.domain[:, 1]-self.domain[:, 0])*self.strata.origins
-                self.strata.widths = (self.domain[:, 1]-self.domain[:, 0]) * self.strata.widths
-                midpts = self.strata.origins + self.strata.widths/2
-            else:
-                midpts = 0
 
             for i in range(n, n_, self.n_add):
                 if i == self.n_stop:
                     break
 
                 rest_pop = np.array([x for x in self.population.tolist() if x not in self.DoE.tolist()])
-                if self.lf == 'mvp':
-                    pop_mid = ((rest_pop / self.strata.widths[0, :]).astype(int) + 0.5) * self.strata.widths[0, :]
-                    new = self.mvp(interpolate, jacobian, rest_pop, pop_mid, midpts)
-                else:
-                    new = self.lf(interpolate, rest_pop, self.n_add, min(values), self.DoE)
+                if self.lf == 'EIF':
+                    new = self.eif(interpolate, rest_pop, min(values))
+                if self.lf == 'EGIF':
+                    new = self.lf(interpolate, rest_pop)
                 self.DoE = np.vstack([self.DoE, new])
 
                 v_new = np.array(RunModel(np.atleast_2d(new), model_script=self.model).qoi_list)
@@ -1717,7 +1757,6 @@ class AKMCS:
                                  corr_model_params=self.corr_model_params, n_opt=1)
                     self.corr_model_params = k.corr_model_params
                     interpolate = k.interpolate
-                    jacobian = k.jacobian
                 else:
                     gp = GaussianProcessRegressor(kernel=self.corr_model_params, n_restarts_optimizer=0)
                     gp.fit(self.DoE, values)
@@ -1729,161 +1768,118 @@ class AKMCS:
         else:
             raise NotImplementedError("Exit code: 'analysis' should be 'Reliability' or 'Sensitivity'.")
 
-    def mvp(self, ip, jac, rp, rpm, mp):
-        # Maximum variance point
-        def cent_diff(f, x, h):
-            dydx = np.zeros((np.size(x, 0), np.size(x, 1)))
-            for dirr in range(np.size(x, 1)):
-                temp = np.zeros_like(x)
-                temp[:, dirr] = np.ones(np.size(x, 0))
-                low = x - h / 2 * temp
-                hi = x + h / 2 * temp
-                a = f.__call__(hi)
-                b = f.__call__(low)
-                dydx[:, dirr] = ((a - b) / h)[:, 0]
-            return dydx
-
+    def u(self, surr, pop):
+        # U-function
+        # References: B. Echard, N. Gayton and M. Lemaire, "AK-MCS: An active learning reliability method combining
+        # Kriging and Monte Carlo Simulation", Structural Safety, Pages 145-154, 2011.
         if self.kriging == 'UQpy':
-            dydx = jac(mp)
-            g, sig = ip(rp, dy=True)
+            g, sig = surr(pop, dy=True)
+            sig = np.sqrt(sig)
         else:
-            dydx = cent_diff(ip, rpm, h=0.05)
-            g, sig = ip(rp, return_std=True)
-            sig = sig.reshape(sig.size, 1)**2
+            g, sig = surr(pop, return_std=True)
+            sig = sig.reshape(sig.size, 1)
+        # sig[sig == 0.] = 0.00001
 
-        max_s, row = 0, None
-        # s1 = np.zeros([mp.shape[0], 1])
-        # k1 = np.zeros([mp.shape[0], 1])
-        for l in range(mp.shape[0]):
-            x0 = mp[l, :]
-            xk = rp[np.all(rpm == x0, axis=1)]
-            if xk.size:
-                k = np.sum(np.exp(-np.linalg.norm(self.DoE-x0, axis=1)/0.25))
-                var = np.var(xk-x0, axis=0)
-                var_k = sig[np.all(rpm == x0, axis=1)]
-                grad = dydx[l, :]
-                s = np.sum(grad * var * grad) * (1 / k) + var_k
-                ms = max(s)
-                # s1[l, 0] = ms
-                # k1[l, 0] = k
-                if ms > max_s:
-                    row = xk[np.argmax(s), :]
-                    max_s = ms
+        u = abs(g) / sig
+        rows = u[:, 0].argsort()[:self.n_add]
 
-        # from mpl_toolkits.mplot3d import Axes3D
-        # fig = plt.figure()
-        # ax = fig.add_subplot(111, projection='3d')
-        # # fig.set_tight_layout(False)
-        # # ax = Axes3D(fig)
-        # ax.scatter(mp[:, 0], mp[:, 1], s1)
-        # plt.show()
-        # print('Where is the plot')
-        # print('hi')
+        indicator = False
+        if min(u[:, 0]) >= 2:
+            indicator = True
 
-        return row
+        # print(g[rows])
+        return pop[rows, :], indicator, g
 
-        # s = np.zeros([self.nsamples, 1])
-        # for j in range(rp.shape[0]):
-        #     t = len(np.where((dydx == dydx[j, None]).all(axis=1)))
-        #     s[j, 0] = np.sum(dydx[j, :] * v[0, :] * dydx[j, :])/t + sig[j, 0]
-        #
-        # rows = s[:, 0].argsort()[-a:]
-        # return rp[rows, :]
-
-    def learning(self):
-        if self.lf == 'U':
-            def c(surr, pop, a, p_, mp, k):
-                if k == 'UQpy':
-                    g, sig = surr(pop, dy=True)
-                    sig = np.sqrt(sig)
-                else:
-                    g, sig = surr(pop, return_std=True)
-                    sig = sig.reshape(sig.size, 1)
-                # sig[sig == 0.] = 0.00001
-
-                u = abs(g)/sig
-                rows = u[:, 0].argsort()[:a]
-
-                indicator = False
-                if min(u[:, 0]) >= 2:
-                    indicator = True
-
-                # print(g[rows])
-                return pop[rows, :], indicator, g
-
-        elif self.lf == 'Weighted-U':
-            def c(surr, pop, a, p_, mp, k):
-                if k == 'UQpy':
-                    g, sig = surr(pop, dy=True)
-                else:
-                    g, sig = surr(pop, return_std=True)
-                    sig = sig.reshape(sig.size, 1)
-                sig[sig == 0.] = 0.00001
-
-                u = abs(g) / sig
-                p1 = p_.pdf(pop, params=self.dist_params).reshape(u.size, 1)
-                u_ = u * ((mp - p1) / mp)
-                rows = u_[:, 0].argsort()[:a]
-
-                indicator = False
-                if min(u[:, 0]) >= 2:
-                    indicator = True
-
-                # print(g[rows])
-                return pop[rows, :], indicator, g
-
-        elif self.lf == 'EFF':
-            def c(surr, pop, a, p_, mp, k):
-                if k == 'UQpy':
-                    g, sig = surr(pop, dy=True)
-                else:
-                    g, sig = surr(pop, return_std=True)
-                # Reliability threshold: a = 0
-                # EGRA method: epshilon = 2*sigma(x)
-                a, ep = 0, 2*sig
-                t1 = (a - g)/sig
-                t2 = (a - ep - g)/sig
-                t3 = (a + ep - g)/sig
-                eff = (g - a) * (2 * sp.norm.cdf(t1) - sp.norm.cdf(t2) - sp.norm.cdf(t3))
-                eff += -sig*(2 * sp.norm.pdf(t1) - sp.norm.pdf(t2) - sp.norm.pdf(t3))
-                eff += sp.norm.cdf(t2) - sp.norm.cdf(t3)
-                rows = eff[:, 0].argsort()[-a:]
-                indicator = False
-                if max(eff) <= 0.001:
-                    indicator = True
-
-                return pop[rows, :], indicator, g
-
-        elif self.lf == 'EIF':
-            def c(surr, pop, a, fm, d):
-                if self.kriging == 'UQpy':
-                    g, sig = surr(pop, dy=True)
-                else:
-                    g, sig = surr(pop, return_std=True)
-                    sig = sig.reshape(sig.size, 1)
-                sig[sig == 0.] = 0.00001
-                u = (fm - g)*sp.norm.cdf((fm-g)/sig) + sig*sp.norm.pdf((fm-g)/sig)
-                rows = u[:, 0].argsort()[(np.size(g)-a):]
-
-                return rows
-
-        elif self.lf == 'New':
-            def c(surr, pop, a, fm, d):
-                if self.kriging == 'UQpy':
-                    g, sig = surr(pop, dy=True)
-                else:
-                    g, sig = surr(pop, return_std=True)
-                    sig = sig.reshape(sig.size, 1)
-                sig[sig == 0.] = 0.00001
-                # Create a voronoi tesselation from design points (d) and distribute the population among separate cells
-                # rows = u[:, 0].argsort()[(np.size(g) - a):]
-
-                return
-
+    def weighted_u(self, surr, pop, a, p_, mp):
+        # Probability Weighted U-function
+        # References: V.S. Sundar and M.S. Shields, "RELIABILITY ANALYSIS USING ADAPTIVE KRIGING SURROGATES WITH
+        # MULTIMODEL INFERENCE".
+        if self.kriging == 'UQpy':
+            g, sig = surr(pop, dy=True)
+            sig = np.sqrt(sig)
         else:
-            c = 'mvp'
+            g, sig = surr(pop, return_std=True)
+            sig = sig.reshape(sig.size, 1)
+        sig[sig == 0.] = 0.00001
 
-        return c
+        u = abs(g) / sig
+        p1 = p_.pdf(pop, params=self.dist_params).reshape(u.size, 1)
+        u_ = u * ((self.max_p - p1) / self.max_p)
+        rows = u_[:, 0].argsort()[:self.n_add]
+
+        indicator = False
+        if min(u[:, 0]) >= 2:
+            indicator = True
+
+        # print(g[rows])
+        return pop[rows, :], indicator, g
+
+    def eff(self, surr, pop):
+        # Expected Feasibilty Function (EFF)
+        # References: B.J. Bichon, M.S. Eldred, L.P.Swiler, S. Mahadevan, J.M. McFarland, "Efficient Global Reliability
+        # Analysis for Nonlinear Implicit Performance Functions", AIAA JOURNAL, Volume 46, 2008.
+        if self.kriging == 'UQpy':
+            g, sig = surr(pop, dy=True)
+            sig = np.sqrt(sig)
+        else:
+            g, sig = surr(pop, return_std=True)
+            sig = sig.reshape(sig.size, 1)
+        sig[sig == 0.] = 0.00001
+        # Reliability threshold: a_ = 0
+        # EGRA method: epshilon = 2*sigma(x)
+        a_, ep = 0, 2 * sig
+        t1 = (a_ - g) / sig
+        t2 = (a_ - ep - g) / sig
+        t3 = (a_ + ep - g) / sig
+        eff = (g - a_) * (2 * sp.norm.cdf(t1) - sp.norm.cdf(t2) - sp.norm.cdf(t3))
+        eff += -sig * (2 * sp.norm.pdf(t1) - sp.norm.pdf(t2) - sp.norm.pdf(t3))
+        eff += ep*(sp.norm.cdf(t3) - sp.norm.cdf(t2))
+        rows = eff[:, 0].argsort()[:self.n_add]
+        indicator = False
+        if max(eff) <= 0.001:
+            indicator = True
+
+        return pop[rows, :], indicator, g
+
+    def eif(self, surr, pop, fm):
+        # Expected Improvement Function (EIF)
+        # References: D.R. Jones, M. Schonlau, W.J. Welch, "Efficient Global Optimization of Expensive Black-Box
+        # Functions", Journal of Global Optimization, Pages 455–492, 1998.
+        if self.kriging == 'UQpy':
+            g, sig = surr(pop, dy=True)
+            sig = np.sqrt(sig)
+        else:
+            g, sig = surr(pop, return_std=True)
+            sig = sig.reshape(sig.size, 1)
+        sig[sig == 0.] = 0.00001
+        u = (fm - g) * sp.norm.cdf((fm - g) / sig) + sig * sp.norm.pdf((fm - g) / sig)
+        rows = u[:, 0].argsort()[(np.size(g) - self.n_add):]
+
+        return rows
+
+    def eigf(self, surr, pop):
+        # Expected Improvement for Global Fit (EIGF)
+        if self.kriging == 'UQpy':
+            g, sig = surr(pop, dy=True)
+            sig = np.sqrt(sig)
+        else:
+            g, sig = surr(pop, return_std=True)
+            sig = sig.reshape(sig.size, 1)
+        sig[sig == 0.] = 0.00001
+
+        t1 = np.tile(g, (self.DoE.shape[0], 1, 1))
+        t2 = np.swapaxes(np.tile(self.DoE, (g.shape[0], 1, 1)), 1, 0)
+
+        dis = np.linalg.norm(t1-t2, axis=2)
+        closest_point = np.argmin(dis, axis=0)
+        index = np.vstack([np.arange(g.shape[0]), closest_point]).T
+
+        m = np.tile(self.DoE, (g.shape[0], 1, 1))
+
+        u = (g - m[index[:, 0], index[:, 1], :])**2 + sig**2
+        rows = u[:, 0].argsort()[(np.size(g) - self.n_add):]
+
+        return rows
 
     def init_akmcs(self):
 
@@ -1895,13 +1891,13 @@ class AKMCS:
 
         if type(self.lf).__name__ == 'function':
             self.lf = self.lf
-        elif self.lf in ['EFF', 'U', 'Weighted-U', 'EIF', 'New', 'mvp']:
+        elif self.lf in ['EFF', 'U', 'Weighted-U', 'EIF', 'EGIF']:
             if self.lf in ['EFF', 'U', 'Weighted-U']:
                 self.analysis = 'Reliability'
             else:
                 self.analysis = 'Sensitivity'
 
-            self.lf = self.learning()
+            # self.lf = self.learning()
         else:
             raise NotImplementedError("Exit code: Doesn't recognize the active learning function.")
 
