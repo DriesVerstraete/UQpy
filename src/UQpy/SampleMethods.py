@@ -1859,6 +1859,8 @@ class AKMCS:
 
     def eigf(self, surr, pop):
         # Expected Improvement for Global Fit (EIGF)
+        # Refrence: J.N Fuhg, "Adaptive surrogate models for parametric studies", Master's Thesis
+        # Link: https://arxiv.org/pdf/1905.05345.pdf
         if self.kriging == 'UQpy':
             g, sig = surr(pop, dy=True)
             sig = np.sqrt(sig)
