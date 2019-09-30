@@ -280,10 +280,13 @@ class MLEstimation:
 
         list_param = []
         list_max_log_like = []
+        print(self.bounds)
         if self.iter_optim > 1 or self.x0 is None:
             x0 = np.random.rand(self.iter_optim, self.model.n_params)
             if self.bounds is not None:
+                print(self.bounds)
                 bounds = np.array(self.bounds)
+                print(bounds)
                 x0 = bounds[:,0].reshape((1,-1)) + (bounds[:,1]-bounds[:,0]).reshape((1,-1)) * x0
         else:
             x0 = self.x0.reshape((1,-1))
@@ -300,7 +303,7 @@ class MLEstimation:
             if self.model.fixed_params is not None:
                 samples_with_fixed = np.concatenate((param.reshape((1, -1)),
                                                      np.array(self.model.fixed_params).reshape((1, -1))),
-                                                    axis=1)
+                                                     axis=1)
             else:
                 samples_with_fixed = param.reshape((1, -1))
             z = RunModel(samples=samples_with_fixed,
@@ -432,8 +435,8 @@ class BayesParameterEstimation:
 
             Inputs:
 
-            :param model: model, must be an instance of class Model
-            :type model: list
+            :param model: model
+            :type model: instance of class Model
 
             :param data: Available data
             :type data: ndarray
@@ -547,6 +550,8 @@ class BayesParameterEstimation:
             log_pdf_prior_error = self.model.prior_error.log_pdf(x=error_cov, params=self.model.prior_error_params,
                                                                  copula_params=self.model.prior_error_copula_params)
 
+        print(self.model.log_like(data=self.data, params=params, error_cov=error_cov) +
+              log_pdf_prior_params + log_pdf_prior_error)
         return self.model.log_like(data=self.data, params=params, error_cov=error_cov) + \
                log_pdf_prior_params + log_pdf_prior_error
 
